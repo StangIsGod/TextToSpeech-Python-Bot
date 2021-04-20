@@ -109,4 +109,4 @@ async def bye(ctx):
         del voice[guild_id] 
         del channel[guild_id]
 
-bot.run('Nzk1MjE4NDA5NzcxMzY4NDc4.X_GK2w.9zKGZmZeAv5mCQRwRGsrZwtprvQ')
+bot.run('')
