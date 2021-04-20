@@ -8,13 +8,16 @@ import time
 import asyncio
 import re
 import os
+import json
 
+intents = discord.Intents().default()
+intents.members = True
 client = discord.Client()
 voiceClient = None
 
 description = "Bot"
 prefix = '$'
-bot = commands.Bot(description=description, command_prefix=prefix)
+bot = commands.Bot(description=description, command_prefix=prefix, intents=intents)
 
 voice = {} 
 channel = {} 
@@ -32,20 +35,7 @@ async def on_message(message):
 
     if message.content.startswith(prefix):
         return
-
-    if isinstance(message.guild, type(None)):
-        if message.author.id == manager:
-            if message.content.startswith('?'):
-                await message.channel.send('コマンドを受け付けたで')
-                await bot.process_commands(message)
-                return
-            else:
-                await message.channel.send('コマンド操作をしてくれ')
-                return
-        else:
-            await message.channel.send('あけみちゃんに不具合があれば、私のツイッターまでご連絡ください。(Twitter @stngsan)')
-            return
-
+        
     if guild_id not in channel:
         return
 
@@ -61,7 +51,7 @@ async def on_message(message):
             await asyncio.sleep(1)
 
         voice_mess = f'./{tmpfile}'
-        voice[guild_id].plDay(discord.FFmpegPCMAudio(voice_mess))
+        voice[guild_id].play(discord.FFmpegPCMAudio(voice_mess))
         while (voice[guild_id].is_playing()):
             await asyncio.sleep(1)
         os.remove(voice_mess) 
@@ -73,6 +63,26 @@ async def on_ready():
 @bot.command()
 async def testing(ctx, msg):
     await ctx.send(msg)
+
+@bot.event
+async def on_voice_state_update(member,before,after):
+    global voice
+    global channel
+
+    guild_id = member.guild.id
+
+    if guild_id not in channel:
+        return
+
+    while (voice[guild_id].is_playing()):
+        await asyncio.sleep(1)
+
+    if len(before.channel.members) == 1:
+        # コマンドが、呼び出したチャンネルで叩かれている場合
+        await voice[guild_id].disconnect() # ボイスチャンネル切断
+        # 情報を削除
+        del voice[guild_id] 
+        del channel[guild_id]
 
 @bot.command(pass_context = True, aliases=["connect","summon"])
 async def join(ctx):
@@ -99,4 +109,4 @@ async def bye(ctx):
         del voice[guild_id] 
         del channel[guild_id]
 
-bot.run(discordのbot用tokenを入れてね)
+bot.run('Nzk1MjE4NDA5NzcxMzY4NDc4.X_GK2w.9zKGZmZeAv5mCQRwRGsrZwtprvQ')
