@@ -95,7 +95,7 @@ async def join(ctx):
     voice[guild.id] = await vo_ch.connect()
     channel[guild.id] = ctx.channel.id
 
-@bot.command(pass_context = True)
+@bot.command(pass_context = True, aliases=["dc","disconnect"])
 async def bye(ctx):
     global guild_id
     global voice
