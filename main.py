@@ -95,7 +95,7 @@ async def join(ctx):
     voice[guild.id] = await vo_ch.connect()
     channel[guild.id] = ctx.channel.id
 
-@bot.command(pass_context = True, aliases=["dc","disconnect"])
+@bot.command(pass_context = True)
 async def bye(ctx):
     global guild_id
     global voice
@@ -109,4 +109,4 @@ async def bye(ctx):
         del voice[guild_id] 
         del channel[guild_id]
 
-bot.run('')
+bot.run('token here')

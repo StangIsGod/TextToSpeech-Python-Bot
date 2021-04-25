@@ -2,8 +2,7 @@ from datetime import datetime, timedelta
 from voicetext import VoiceText, VoiceTextException
 
 class vt_func:
-    VT_APIKEY = VoiceText Web APIに登録してKEYを入れてね 
-    #https://cloud.voicetext.jp/webapi/api_keys/new
+    VT_APIKEY = "3io9bd31euk2cekx"
 
     def to_wave(text, speaker, emotion, speed, pitch, volume, guildid):
         filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{guildid}.wav"
