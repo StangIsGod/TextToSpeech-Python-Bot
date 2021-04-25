@@ -89,7 +89,12 @@ async def on_message(message):
             if len(s) == 0:
                 vlm = volume
             else:
-                vlm = json.loads(s)["volume"]
+                ar = json.loads(s)
+                if not "volume" in ar:
+                    vlm = "75"
+                else:
+                    vlm = ar["volume"]
+
 
         get_msg = re.sub(r'http(s)?://([\w-]+\.)+[\w-]+(/[-\w ./?%&=]*)?', 'URL', message.content)
 
@@ -112,7 +117,7 @@ async def on_message(message):
 
         print(get_msg)
 
-        tmpfile = vt_func.to_wave(get_msg, 'hikari', emotion, emotionlevel, pitch, speed, vlm, guild_id)
+        tmpfile = vt_func.to_wave(get_msg, 'hikari', emotion, emotionlevel, pitch, speed, vlm, guild_id, voicetextAPI)
 
         while (voice[guild_id].is_playing()):
             await asyncio.sleep(1)
