@@ -59,7 +59,7 @@ def get_prefix(client, ctx):
             else:
                 return "$"
 
-bot = commands.Bot(description=description, command_prefix=get_prefix, intents=intents, reconnect=True, help_command=None)
+bot = commands.Bot(description=description, command_prefix=get_prefix, intents=intents, help_command=None)
 bot.remove_command("help")
 
 @bot.listen('on_message')
@@ -133,6 +133,7 @@ async def on_message(message):
 @bot.listen('on_ready')
 async def on_ready():
     print(f'ログインに成功したよ！ [{bot.user}]')
+    await bot.change_presence(activity=discord.Game(f'{len(voice)}サーバーが使用中 (Max:50)'))
     async for guild in bot.fetch_guilds(limit=150):
         dir = f"./Setting/{guild.id}.json"
         if os.path.isfile(dir) == False:
@@ -168,9 +169,28 @@ async def on_voice_state_update(member,before,after):
     global voice
     global channel
 
+    isMe = (member.id is bot.user.id) and (before.channel is not None)
+    #print(f"before's channel is {}")
+    #print(f"after's channel is {after.channel is None}")
+    #print(f"{isMe} : {before.channel.id} : {after.channel.id}")
+
     guild_id = member.guild.id
 
+    if not isMe and member.bot:
+        return
+
+    if isMe:
+        if guild_id in voice:
+            del voice[guild_id]
+
+        if guild_id in channel:
+            del channel[guild_id]
+        return
+
     if guild_id not in channel:
+        return
+
+    if not type(before.channel) == discord.channel.VoiceChannel:
         return
 
     while (voice[guild_id].is_playing()):
@@ -196,24 +216,41 @@ async def join(ctx):
         guild = ctx.message.guild
 
         if not len(voice) >= 50:
+            await ctx.send("おじゃまするで！")
             voice[guild.id] = await vo_ch.connect()
-            channel[guild.id] = ctx.channel.id
+            channel[guild.id] = ctx.channel.id         
         else:
-            ctx.send("今現在回線が混み合ってるから、時間を置いてから追加してな！")
+            await ctx.send("今現在回線が混み合ってるから、時間を置いてから追加してな！")
     except Exception as ex:
         print(ex)
 
+@bot.command(pass_context = True)
+async def help(ctx):
+    embed = discord.Embed(title="AkemiChan", description="Thanks for Using Akemichan!", color=0x4b0082)
+    embed.set_author(name="Created by STNG", url="https://twitter.com/stngsan", icon_url="https://i.imgur.com/fVONXji.png")
+    embed.set_thumbnail(url="https://i.imgur.com/SzmD9Hy.png")
+    embed.add_field(name="join", value="vcに参加するで！使うときは自分もvcに入ってな！", inline=True)
+    embed.add_field(name="bye", value="参加したvcから抜けるで！", inline=False)
+    embed.add_field(name="add [単語] [読み方]", value="[単語]を[読み方]で読むように覚えるで！", inline=False)
+    embed.add_field(name="delete [単語]", value="覚えた読み方で読むのをやめるで！", inline=False)
+    embed.set_footer(text="バグ等の報告はDiscord(stng#4545)までお願いします。")
+    await ctx.send(embed=embed)
 
-
-@bot.command(pass_context = True, aliases=["dc","disconnect"])
+@bot.command(pass_context = True, aliases=["dc","disconnect","kill", "Bye"])
 async def bye(ctx):
     try:
         global guild_id
         global voice
         global channel
         guild_id = ctx.guild.id
+
+        if guild_id not in voice or guild_id not in channel:
+            return
+
         # コマンドが、呼び出したチャンネルで叩かれている場合
         if ctx.channel.id == channel[guild_id]:
+            
+
             await ctx.channel.send('じゃあの')
             await voice[guild_id].disconnect() # ボイスチャンネル切断
             # 情報を削除
@@ -222,7 +259,7 @@ async def bye(ctx):
 
             await bot.change_presence(activity=discord.Game(f'{len(voice)}サーバーが使用中 (Max:50)'))
     except Exception as ex:
-        print(ex)
+        print(f"An error has occurred in {ctx.guild.name}(ID:{ctx.guild.id})")
 
 @bot.command()
 async def add(ctx, arg1, arg2):
