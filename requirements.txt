@@ -1,3 +1,4 @@
 discord.py[voice]>=1.4.1
 python-voicetext
-PyAudio
+portaudio19-dev
+pyaudio
