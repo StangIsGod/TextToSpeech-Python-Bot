@@ -4,6 +4,8 @@ from discord.ext import commands
 from discord.ext.commands import Bot
 from discord.voice_client import VoiceClient
 from submodules.VoiceText import vt_func
+from pykakasi import kakasi
+import logging
 import time
 import asyncio
 import re
@@ -41,8 +43,28 @@ volume = 100
 ########################################
 
 ldedPrefix = {}
+loaded_list = {}
+
+if (os.path.isfile("./Setting.json")) == False:
+    f = open('./Setting.json', 'x', encoding='UTF-8')
+    l = {"token" : "", "prefix" : "$", "voicetextAPI" : "", "volume" : 80}
+    loaded_list = l
+    f.write(json.dumps(l, sort_keys=True, indent=4))
+    f.close()
+    print("設定ファイルを生成しました。\n設定を全て正しく記入した後に再起動してください。")
+    sys.exit()
+else:
+    f = open('./Setting.json', 'r', encoding='UTF-8')
+    r = f.read()
+    #print(f"読み込んだ文字: \n{r}")
+    loaded_list = json.loads(r)
+    f.close()
+    #print(loaded_list)
 
 def get_prefix(client, ctx):
+    if ctx.guild is None:
+        return loaded_list["prefix"]
+
     dir = f"./Setting/{ctx.guild.id}.json"
     if os.path.isfile(dir):
         global ldedPrefix
@@ -55,18 +77,39 @@ def get_prefix(client, ctx):
 
                     return wL["prefix"]
                 else:
-                    return "$"
+                    return loaded_list["prefix"]
             else:
-                return "$"
+                return loaded_list["prefix"]
 
 bot = commands.Bot(description=description, command_prefix=get_prefix, intents=intents, help_command=None)
 bot.remove_command("help")
+
+def say_Exception(e):
+    print('=== エラー内容 ===')
+    print('type:' + str(type(e)))
+    print('args:' + str(e.args))
+    print('message:' + e.message)
+    print('e_main:' + str(e))
+    print('=======================')
+
+async def Logger_Loop():
+    logger = logging.getLogger('discord')
+    logger.setLevel(logging.WARNING)
+    handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
+    handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
+    logger.addHandler(handler)
+
+@bot.check #bool型
+async def globally_block_dms(ctx):
+    return ctx.guild is not None
 
 @bot.listen('on_message')
 async def on_message(message):
     if message.author.bot:
         return
 
+    if message.guild is None:
+        return
     global voice
     global channel
     global ldedPrefix
@@ -115,9 +158,14 @@ async def on_message(message):
         for oldStr in wA.keys():
             get_msg = get_msg.replace(oldStr, wA[oldStr])
 
-        print(get_msg)
+        #print(get_msg)
 
-        tmpfile = vt_func.to_wave(get_msg, 'hikari', emotion, emotionlevel, pitch, speed, vlm, guild_id, voicetextAPI)
+        kks = kakasi()
+        kks.setMode('J', 'H')
+        conv = kks.getConverter()
+        get_msg_converted = conv.do(get_msg)
+
+        tmpfile = vt_func.to_wave(get_msg_converted, 'hikari', emotion, emotionlevel, pitch, speed, vlm, guild_id, voicetextAPI)
 
         while (voice[guild_id].is_playing()):
             await asyncio.sleep(1)
@@ -162,7 +210,23 @@ async def on_guild_remove(guild: discord.Guild):
 
 @bot.command()
 async def testing(ctx, msg):
-    await ctx.send(msg)
+    kks = kakasi()
+    kks.setMode('J', 'H')
+    conv = kks.getConverter()
+    a = conv.do(msg)
+    print(a)
+    await ctx.send(a)
+    #await ctx.send(msg)
+
+@bot.command(pass_context=True)
+async def invite(ctx):
+    await ctx.send("これがurlやで！")
+    await ctx.send(f"https://discord.com/api/oauth2/authorize?client_id={bot.user.id}&permissions={'0'}&scope={'bot'}")
+
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, discord.ext.commands.errors.CommandNotFound):
+        await ctx.send("そんな呪文ないで！")
 
 @bot.event
 async def on_voice_state_update(member,before,after):
@@ -215,25 +279,34 @@ async def join(ctx):
         vo_ch = author.voice.channel
         guild = ctx.message.guild
 
-        if not len(voice) >= 50:
-            await ctx.send("おじゃまするで！")
+        if not len(voice) >= 50:          
             voice[guild.id] = await vo_ch.connect()
-            channel[guild.id] = ctx.channel.id         
+            channel[guild.id] = ctx.channel.id     
+
+            await ctx.send("おじゃまするで！")    
         else:
             await ctx.send("今現在回線が混み合ってるから、時間を置いてから追加してな！")
     except Exception as ex:
-        print(ex)
+        say_Exception(ex)
 
 @bot.command(pass_context = True)
 async def help(ctx):
-    embed = discord.Embed(title="AkemiChan", description="Thanks for Using Akemichan!", color=0x4b0082)
+    global ldedPrefix
+    if ldedPrefix[ctx.guild.id] is None:
+        pfx = loaded_list["prefix"]
+    else:
+        pfx = ldedPrefix[ctx.guild.id]
+
+    embed = discord.Embed(title="AkemiChan", description="Thanks for Using Akemichan!", color=0x4b0082, type="rich")
     embed.set_author(name="Created by STNG", url="https://twitter.com/stngsan", icon_url="https://i.imgur.com/fVONXji.png")
     embed.set_thumbnail(url="https://i.imgur.com/SzmD9Hy.png")
-    embed.add_field(name="join", value="vcに参加するで！使うときは自分もvcに入ってな！", inline=True)
-    embed.add_field(name="bye", value="参加したvcから抜けるで！", inline=False)
-    embed.add_field(name="add [単語] [読み方]", value="[単語]を[読み方]で読むように覚えるで！", inline=False)
-    embed.add_field(name="delete [単語]", value="覚えた読み方で読むのをやめるで！", inline=False)
-    embed.set_footer(text="バグ等の報告はDiscord(stng#4545)までお願いします。")
+    embed.add_field(name=f"{pfx}join", value="`vcに参加するで！使うときは自分もvcに入ってな！`", inline=True)
+    embed.add_field(name=f"{pfx}bye", value="`参加したvcから抜けるで！`", inline=False)
+    embed.add_field(name=f"{pfx}add [単語] [読み方]", value="`[単語]を[読み方]で読むように覚えるで！`", inline=False)
+    embed.add_field(name=f"{pfx}delete [単語]", value="`覚えた読み方で読むのをやめるで！`", inline=False)
+    embed.add_field(name=f"{pfx}invite", value="`招待リンクを送るで！`", inline=False)
+    embed.set_footer(text="バグ等の報告はDiscord(stng#4545)までお願いします🥳")
+
     await ctx.send(embed=embed)
 
 @bot.command(pass_context = True, aliases=["dc","disconnect","kill", "Bye"])
@@ -247,19 +320,17 @@ async def bye(ctx):
         if guild_id not in voice or guild_id not in channel:
             return
 
-        # コマンドが、呼び出したチャンネルで叩かれている場合
         if ctx.channel.id == channel[guild_id]:
-            
-
             await ctx.channel.send('じゃあの')
-            await voice[guild_id].disconnect() # ボイスチャンネル切断
-            # 情報を削除
+            await voice[guild_id].disconnect()
+
             del voice[guild_id] 
             del channel[guild_id]
 
             await bot.change_presence(activity=discord.Game(f'{len(voice)}サーバーが使用中 (Max:50)'))
     except Exception as ex:
         print(f"An error has occurred in {ctx.guild.name}(ID:{ctx.guild.id})")
+        say_Exception(ex)
 
 @bot.command()
 async def add(ctx, arg1, arg2):
@@ -352,22 +423,6 @@ async def setting(ctx, *args):
         await ctx.send(f"音量を[{args[1]}]に設定したで！")
 ########################################################################################################
 
-loaded_list = {}
-
-if (os.path.isfile("./Setting.json")) == False:
-    f = open('./Setting.json', 'x', encoding='UTF-8')
-    l = {"token" : "", "prefix" : "$", "voicetextAPI" : "", "volume" : 80}
-    f.write(json.dumps(l, sort_keys=True, indent=4))
-    f.close()
-    print("設定ファイルを生成しました。\n設定を全て正しく記入した後に再起動してください。")
-    sys.exit()
-else:
-    f = open('./Setting.json', 'r', encoding='UTF-8')
-    r = f.read()
-    #print(f"読み込んだ文字: \n{r}")
-    loaded_list = json.loads(r)
-    f.close()
-    #print(loaded_list)
 
 prefix = loaded_list["prefix"]
 discordtoken = loaded_list["token"]
@@ -386,5 +441,6 @@ if (prefix_is_null) or (token_is_null) or (apikey_is_null):
           ("\nアプリケーションを終了します。"))
     sys.exit()
 else:
+    bot.loop.create_task(Logger_Loop())
     bot.run(discordtoken)
 
