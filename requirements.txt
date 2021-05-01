@@ -1,3 +1,3 @@
 discord.py[voice]>=1.4.1
 python-voicetext
-pyaudio
+PyAudio==0.2.11
