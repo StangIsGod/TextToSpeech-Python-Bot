@@ -210,12 +210,9 @@ async def on_guild_remove(guild: discord.Guild):
 
 @bot.command()
 async def testing(ctx, msg):
-    kks = kakasi()
-    kks.setMode('J', 'H')
-    conv = kks.getConverter()
-    a = conv.do(msg)
-    print(a)
-    await ctx.send(a)
+    global voice
+    print(len(voice))
+    await ctx.send()
     #await ctx.send(msg)
 
 @bot.command(pass_context=True)
@@ -249,6 +246,8 @@ async def on_voice_state_update(member,before,after):
 
         if guild_id in channel:
             del channel[guild_id]
+
+        await bot.change_presence(activity=discord.Game(f'{len(voice)}サーバーが使用中 (Max:50)'))
         return
 
     if guild_id not in channel:
@@ -266,7 +265,7 @@ async def on_voice_state_update(member,before,after):
         # 情報を削除
         del voice[guild_id] 
         del channel[guild_id]
-
+       
     await bot.change_presence(activity=discord.Game(f'{len(voice)}サーバーが使用中 (Max:50)'))
 
 @bot.command(pass_context = True, aliases=["connect","summon"])
@@ -283,7 +282,8 @@ async def join(ctx):
             voice[guild.id] = await vo_ch.connect()
             channel[guild.id] = ctx.channel.id     
 
-            await ctx.send("おじゃまするで！")    
+            await ctx.send("おじゃまするで！") 
+            await bot.change_presence(activity=discord.Game(f'{len(voice)}サーバーが使用中 (Max:50)'))   
         else:
             await ctx.send("今現在回線が混み合ってるから、時間を置いてから追加してな！")
     except Exception as ex:
@@ -305,7 +305,8 @@ async def help(ctx):
     embed.add_field(name=f"{pfx}add [単語] [読み方]", value="`[単語]を[読み方]で読むように覚えるで！`", inline=False)
     embed.add_field(name=f"{pfx}delete [単語]", value="`覚えた読み方で読むのをやめるで！`", inline=False)
     embed.add_field(name=f"{pfx}invite", value="`招待リンクを送るで！`", inline=False)
-    embed.set_footer(text="バグ等の報告はDiscord(stng#4545)までお願いします🥳")
+    embed.add_field(name=f"{pfx}setting [変更する要素] [値]", value="`サーバー内の設定を変更するで！\n例:setting prefix #\n例文通りに打つとコマンドを起動する文字が[ # ]になるで！`", inline=False)
+    embed.set_footer(text="バグ等の報告はDiscord(stng#4545)までお願いします🥳   (ver-beta)")
 
     await ctx.send(embed=embed)
 
@@ -423,6 +424,9 @@ async def setting(ctx, *args):
         await ctx.send(f"音量を[{args[1]}]に設定したで！")
 ########################################################################################################
 
+async def test_loop():
+    print(len(voice))
+    time.sleep(2)
 
 prefix = loaded_list["prefix"]
 discordtoken = loaded_list["token"]
