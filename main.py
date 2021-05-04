@@ -12,6 +12,12 @@ import re
 import os
 import json
 import sys
+from datetime import datetime, timedelta
+import requests
+import pyvcroid2
+import threading
+
+#py -3.9-32 main.py
 
 ###############DIRECTORY################
 SettingDir = "./Setting"
@@ -22,6 +28,7 @@ description = "Bot"
 prefix = '#'
 voiceapikey = ""
 dicordtoken = ""
+defaultvoicetype = "akane_west"
 
 ys = {}
 ################DISCORD#################
@@ -41,13 +48,27 @@ pitch = 100
 speed = 120
 volume = 100
 ########################################
-
 ldedPrefix = {}
 loaded_list = {}
+dictionaries = {"ai" : "ai_44",
+                "akane_west" : "akane_west_emo_44",
+                "aoi" : "aoi_emo_44",
+                "kiritan" : "kiritan_44",
+                "kou" : "kou_44",
+                "seika" : "seika_44",
+                "shouta" : "shouta_44",
+                "tamiyasu" : "tamiyasu_44",
+                "tsuina" : "tsuina_44",
+                "tsuina_west" : "tsuina_west_44",
+                "yoshidakun" : "yoshidakun_44",
+                "yukari" : "yukari_44",
+                "zunko" : "zunko_44",
+                "yukari_emo" : "yukari_emo_44"}
+
 
 if (os.path.isfile("./Setting.json")) == False:
     f = open('./Setting.json', 'x', encoding='UTF-8')
-    l = {"token" : "", "prefix" : "$", "voicetextAPI" : "", "volume" : 80}
+    l = {"token" : "", "prefix" : "$", "voicetextAPI" : "", "voiceroidAPI" : "", "volume" : 80}
     loaded_list = l
     f.write(json.dumps(l, sort_keys=True, indent=4))
     f.close()
@@ -62,6 +83,9 @@ else:
     #print(loaded_list)
 
 def get_prefix(client, ctx):
+    if len(loaded_list["prefix"]) == 0:
+        loaded_list["prefix"] = prefix
+
     if ctx.guild is None:
         return loaded_list["prefix"]
 
@@ -103,6 +127,15 @@ async def Logger_Loop():
 async def globally_block_dms(ctx):
     return ctx.guild is not None
 
+async def get_guild_prefix(guildid):
+    global loaded_list
+    global ldedPrefix
+
+    if ldedPrefix[guildid] is None:
+        pfx = loaded_list["prefix"]
+    else:
+        pfx = ldedPrefix[guildid]
+
 @bot.listen('on_message')
 async def on_message(message):
     if message.author.bot:
@@ -123,6 +156,9 @@ async def on_message(message):
     if guild_id not in channel:
         return
 
+    if message.channel is None:
+        return
+
     if message.channel.id == channel[guild_id]:
         dir = f"./Setting/{guild_id}.json"
         if os.path.isfile(dir):
@@ -138,6 +174,10 @@ async def on_message(message):
                 else:
                     vlm = ar["volume"]
 
+                if not "voicetype" in ar:
+                    l_vt = defaultvoicetype
+                else:
+                    l_vt = ar["voicetype"]
 
         get_msg = re.sub(r'http(s)?://([\w-]+\.)+[\w-]+(/[-\w ./?%&=]*)?', 'URL', message.content)
 
@@ -165,18 +205,28 @@ async def on_message(message):
         conv = kks.getConverter()
         get_msg_converted = conv.do(get_msg)
 
-        tmpfile = vt_func.to_wave(get_msg_converted, 'hikari', emotion, emotionlevel, pitch, speed, vlm, guild_id, voicetextAPI)
+        #tmpfile = vt_func.to_wave(get_msg_converted, 'hikari', emotion, emotionlevel, pitch, speed, vlm, guild_id, voicetextAPI)
+
+        filename = "./" + datetime.now().strftime(f"%Y%m%d_%H%M%S_{guild_id}") + ".wav"
+
+        voicetype = dictionaries[l_vt]
+        bot.loop.create_task(vt_func().new_to_voiceroid_wave(get_msg_converted, guild_id, voicetype, filename))
+        #tmpfile = vt_func().to_voiceroid_wave(get_msg_converted, guild_id)
 
         while (voice[guild_id].is_playing()):
             await asyncio.sleep(1)
 
-        voice_mess = f'./{tmpfile}'
-        voice[guild_id].play(discord.FFmpegPCMAudio(voice_mess))
-
-        while (voice[guild_id].is_playing()):
+        while (not os.path.isfile(filename)):
             await asyncio.sleep(1)
 
-        os.remove(voice_mess) 
+        if os.path.isfile(filename):
+            voice[guild_id].play(discord.FFmpegPCMAudio(filename))
+
+            while (voice[guild_id].is_playing()):
+                await asyncio.sleep(1)
+
+            if os.path.isfile(filename):
+                os.remove(filename) 
 
 @bot.listen('on_ready')
 async def on_ready():
@@ -186,7 +236,7 @@ async def on_ready():
         dir = f"./Setting/{guild.id}.json"
         if os.path.isfile(dir) == False:
             f = open(dir, 'x', encoding='UTF-8')
-            l = {"prefix" : prefix, "role" : "", "volume" : "75"}
+            l = {"prefix" : prefix, "role" : "", "volume" : "75", "voicetype" : "akane_west"}
             f.write(json.dumps(l, sort_keys=True, indent=4))
             f.close()
 
@@ -210,10 +260,27 @@ async def on_guild_remove(guild: discord.Guild):
 
 @bot.command()
 async def testing(ctx, msg):
-    global voice
-    print(len(voice))
-    await ctx.send()
-    #await ctx.send(msg)
+    guild_id = ctx.guild.id
+    dir = f"./Setting/{guild_id}.json"
+    if os.path.isfile(dir):
+        f = open(dir, 'r')
+        s = f.read()
+
+        if len(s) == 0:
+            l_vt = defaultvoicetype
+        else:
+            ar = json.loads(s)
+            if not "voicetype" in ar:
+                l_vt = defaultvoicetype
+            else:
+                l_vt = ar["voicetype"]
+
+            voicetype = dictionaries[l_vt]
+            print(voicetype)
+            bot.loop.create_task(vt_func().new_to_voiceroid_wave(msg, ctx.guild.id, voicetype))
+    #vt_func().new_to_voiceroid_wave(vc, msg, ctx.guild.id)
+    #tmpfile = vt_func().to_voiceroid_wave("aaaaa")
+    #print(tmpfile)
 
 @bot.command(pass_context=True)
 async def invite(ctx):
@@ -230,7 +297,7 @@ async def on_voice_state_update(member,before,after):
     global voice
     global channel
 
-    isMe = (member.id is bot.user.id) and (before.channel is not None)
+    isMe = (member.id is bot.user.id) and (before.channel is not None) and (after.channel is None)
     #print(f"before's channel is {}")
     #print(f"after's channel is {after.channel is None}")
     #print(f"{isMe} : {before.channel.id} : {after.channel.id}")
@@ -275,6 +342,10 @@ async def join(ctx):
         global channel
         author = ctx.message.author
 
+        if author.voice is None:
+            await ctx.send("先にvcに入ってな！") 
+            return
+
         vo_ch = author.voice.channel
         guild = ctx.message.guild
 
@@ -288,6 +359,35 @@ async def join(ctx):
             await ctx.send("今現在回線が混み合ってるから、時間を置いてから追加してな！")
     except Exception as ex:
         say_Exception(ex)
+
+@bot.command(pass_context = True)
+async def voicetype(ctx):
+    if ldedPrefix[ctx.guild.id] is None:
+        pfx = loaded_list["prefix"]
+    else:
+        pfx = ldedPrefix[ctx.guild.id]
+
+    embed=discord.Embed(title="AkemiChan Voicetypes", description="Thanks for Using Akemichan!", color=0x4b0082)
+    embed.set_author(name="Created by STNG", url="https://twitter.com/stngsan", icon_url="https://i.imgur.com/fVONXji.png")
+    embed.set_thumbnail(url="https://i.imgur.com/SzmD9Hy.png")
+    embed.add_field(name="`こうやって使ってな！`", value=f"`例:{pfx}setting voicetype akane_west`", inline=False)
+    embed.add_field(name="月読アイ(v1)", value="設定用 : ai", inline=False)
+    embed.add_field(name="琴葉 茜", value="設定用 : akane_west", inline=False)
+    embed.add_field(name="琴葉 葵", value="設定用 : aoi", inline=False)
+    embed.add_field(name="東北きりたん", value="設定用 : kiritan", inline=False)
+    embed.add_field(name="水奈瀬コウ", value="設定用 : kou", inline=False)
+    embed.add_field(name="京町セイカ(v1)", value="設定用 : seika", inline=False)
+    embed.add_field(name="月読ショウタ(v1)", value="設定用 : shouta", inline=False)
+    embed.add_field(name="民安ともえ(v1)", value="設定用 : tamiyasu", inline=False)
+    embed.add_field(name="ついなちゃん (通常)", value="設定用 : tsuina", inline=False)
+    embed.add_field(name="ついなちゃん (関西弁)", value="設定用 : tsuina_west", inline=False)
+    embed.add_field(name="鷹の爪 吉田くん(v1)", value="設定用 : yoshidakun", inline=False)
+    embed.add_field(name="結月ゆかり", value="設定用 : yukari, yukari_emo", inline=False)
+    embed.add_field(name="東北ずんこ", value="設定用 : zunko", inline=False)
+    embed.set_footer(text="バグ等の報告はDiscord(stng#4545)までお願いします🥳   (ver-beta)")
+    await ctx.send(embed=embed)
+
+
 
 @bot.command(pass_context = True)
 async def help(ctx):
@@ -305,7 +405,7 @@ async def help(ctx):
     embed.add_field(name=f"{pfx}add [単語] [読み方]", value="`[単語]を[読み方]で読むように覚えるで！`", inline=False)
     embed.add_field(name=f"{pfx}delete [単語]", value="`覚えた読み方で読むのをやめるで！`", inline=False)
     embed.add_field(name=f"{pfx}invite", value="`招待リンクを送るで！`", inline=False)
-    embed.add_field(name=f"{pfx}setting [変更する要素] [値]", value="`サーバー内の設定を変更するで！\n例:setting prefix #\n例文通りに打つとコマンドを起動する文字が[ # ]になるで！`", inline=False)
+    embed.add_field(name=f"{pfx}setting [変更する要素] [値]", value="`サーバー内の設定を変更するで！`\n例:setting prefix #\n`例文通りに打つとコマンドを起動する文字が[ # ]になるで！`\n`詳しくは{pfx}setting help で確認してな！`", inline=False)
     embed.set_footer(text="バグ等の報告はDiscord(stng#4545)までお願いします🥳   (ver-beta)")
 
     await ctx.send(embed=embed)
@@ -400,28 +500,47 @@ async def check_dictional(ctx, arg1):
 
 @bot.command()
 async def setting(ctx, *args):
+    wL = {}
     dir = f"./Setting/{ctx.guild.id}.json"
     if os.path.isfile(dir):
         f = open(dir, 'r')
         s = f.read()
 
         if len(s) == 0:
-             wL = {'prefix': prefix, 'role': '', 'volume' : '70'}
+             wL = {'prefix': prefix, 'role': '', 'volume' : '70', 'voicetype' : "akane_west"}
         else:
              wL = json.loads(s)
     f.close()
-    f = open(dir, 'w')
 
+    saveflag = False
+
+    if args[0] == 'help':
+        embed=discord.Embed(title="Akemichan Setting Help", description="Thanks for Using Akemichan!", color=0x4b0082)
+        embed.set_author(name="Created by STNG", url="https://twitter.com/stngsan", icon_url="https://i.imgur.com/fVONXji.png")
+        embed.set_thumbnail(url="https://i.imgur.com/SzmD9Hy.png")
+        embed.add_field(name="setting prefix [コマンド用の文字]", value="`[コマンド用の文字]でコマンドを起動するように設定するで！`", inline=False)
+        embed.add_field(name="setting volume [音量]", value="`読み上げ時の音量を変えんで！`", inline=False)
+        embed.add_field(name="setting voicetype", value=f"`読み上げる人を変えるで！`\n`詳しくは {wL['prefix']}voicetype で確認してな！`", inline=False)
+        embed.set_footer(text="バグ等の報告はDiscord(stng#4545)までお願いします🥳   (ver-beta)")
+        await ctx.send(embed=embed)
     if args[0] == 'prefix':
+        saveflag = True
         wL['prefix'] = args[1]
-        f.write(json.dumps(wL, sort_keys=True, indent=4))
-        f.close()
         await ctx.send(f"コマンド用の文字を[{args[1]}]に設定したで！")
     if args[0] == 'volume':
+        saveflag = True
         wL['volume'] = args[1]
+        await ctx.send(f"音量を[{args[1]}]に設定したで！")
+    if args[0] == 'voicetype':
+        saveflag = True
+        if args[1] in dictionaries.keys():
+            wL['voicetype'] = args[1]
+            await ctx.send(f"喋る人を[{dictionaries[args[1]]}]に設定したで！")
+
+    if saveflag:
+        f = open(dir, 'w')
         f.write(json.dumps(wL, sort_keys=True, indent=4))
         f.close()
-        await ctx.send(f"音量を[{args[1]}]に設定したで！")
 ########################################################################################################
 
 async def test_loop():
@@ -439,7 +558,7 @@ token_is_null = len(discordtoken) == 0
 apikey_is_null = len(voicetextAPI) == 0
 
 if (prefix_is_null) or (token_is_null) or (apikey_is_null):
-    print(("prefixが空欄です。\n" if prefix_is_null else "") +
+    pr1t(("prefixが空欄です。\n" if prefix_is_null else "") +
           ("tokenが空欄です。\n" if token_is_null else "") + 
           ("voicetextAPIが空欄です。\n" if apikey_is_null else "") +
           ("\nアプリケーションを終了します。"))
@@ -447,4 +566,5 @@ if (prefix_is_null) or (token_is_null) or (apikey_is_null):
 else:
     bot.loop.create_task(Logger_Loop())
     bot.run(discordtoken)
+
 
